@@ -1,0 +1,61 @@
+---
+title: "kakyolaProject"
+author: "Mich Stg"
+date: "11/23/2021"
+output: html_document
+---
+
+```{r}
+data = Book3
+
+library(survival)
+exact = coxph(Surv(Y,Status)~X2,data = data,method = "exact")
+summary(exact)
+
+exactzph = cox.zph(exact)
+exactzph
+plot(exactzph)
+```
+
+```{r}
+library(survminer)
+#mencari RHO dalam model exact
+
+fungsirho <- function(model, transform = "km", new_cox.zph = NULL) {
+  error <- resid(model)
+  nama_var <- names(model$coefficients)
+  nvar <- length(nama_var)
+  ndead <- length(error)/nvar
+  if (nvar == 1) {
+    waktu <- as.numeric(names(error)) 
+  } else {
+    waktu <- as.numeric(dimnames(error)[[1]])
+  }
+
+  if (is.character(transform)) {
+    tnama <- transform
+    twaktu <- switch(transform, identity = waktu, rank = rank(waktu), 
+                     log = log(waktu), km = {
+                       temp <- survfitKM(factor(rep(1, nrow(model$y))), 
+                                         model$y, se.fit = FALSE)
+                       t1 <- temp$surv[temp$n.event > 0]
+                       t2 <- temp$n.event[temp$n.event > 0]
+                       km <- rep(c(1, t1), c(t2, 0))
+                       if (is.null(attr(error, "strata"))) 1 - km else (1 - km[sort.list(sort.list(waktu))])
+                     }, stop("Unrecognized transform"))
+  }
+  else {
+    tnama <- deparse(substitute(transform))
+    if (length(tnama) > 1) 
+      tnama <- "user"
+    twaktu <- transform(waktu)
+  }
+  xx <- twaktu - mean(twaktu)
+  r2 <- error %*% model$var * ndead
+  test <- xx %*% r2
+  corel <- c(cor(xx, r2))
+  cbind(rho = c(corel,NA), new_cox.zph$table)
+}
+
+fungsirho(model = exact, new_cox.zph = exactzph)
+```
